@@ -1,0 +1,81 @@
+aside {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: max(20vw, 8em);
+    height: 95vh;
+    transition: width 1.5s;
+    margin: 0;
+    border-style: solid;
+    border-color: gray;
+    border-width: max(1px, 0.5vh);
+    border-radius: 0 3vh 0 0;
+    background-color: white;
+    z-index: 9998;
+    padding-left: 1vw;
+}
+button.operate-choice {
+    height: 5vh;
+    font-size: 2.5vh;
+    margin: 1vh 0.3vw;
+    padding: 0.5vh 0.7vw;
+}
+p.operate-choice {
+    font-size: 3vh;
+    margin: 2vh 0.3vw 0.5vh 0.3vw;
+}
+#show-aside {
+    display: none;
+    position: fixed;
+    left: 0;
+    top: 30vh;
+    width: 6vh;
+    height: 7vh;
+    padding: 0 0 0.5vh 1vh;
+    border-style: solid;
+    border-width: max(2px, 0.7vh);
+    border-color: gray;
+    border-radius: 0 4vh 4vh 0;
+    background-color: white;
+    z-index: 9999;
+}
+#hide-aside {
+    position: absolute;
+    top: -2vh;
+    right: 2vh;
+    margin: 1vh 0.3vw;
+}
+#show-aside, #hide-aside {
+    user-select: none;
+    cursor: pointer;
+    font-size: 5vh;
+    color: gray;
+}
+#hide-aside:hover, #show-aside:hover {
+    text-decoration: underline;
+}
+svg {
+    z-index: 0;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+.free-point, .active-point {
+    fill: red;
+}
+.active-point {
+    stroke: yellow;
+}
+.unfree-point {
+    fill: gray;
+}
+.free-point, .unfree-point {
+    stroke: black;
+}
+.line, .arc, .circle{
+    stroke: black;
+}
+.arc, .circle{
+    fill: none;
+}

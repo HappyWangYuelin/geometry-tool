@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta title="discription" content="这是一个几何绘图器，可以用它来很方便地进行几何作图">
+  <title>几何绘图器</title>
+  <link rel="stylesheet" href="./style.css"/>
+  <script src="./main.js" defer></script>
+</head>
+<body>
+  <aside>
+    <p id="hide-aside" onclick="hideAside()">x</p>
+    <p class="operate-choice">基础操作</p>
+    <button onclick="setOperate('create-points')" class="operate-choice">描点</button>
+    <p class="operate-choice">线</p>
+    <button onclick="setOperate('create-line-seg')" class="operate-choice">线段</button>
+    <p class="operate-choice">圆与弧</p>
+    <button onclick="setOperate('create-circle')" class="operate-choice">圆（圆心+圆上一点）</button>
+    <button onclick="setOperate('create-clockwise-arc')" class="operate-choice">圆弧（顺时针）</button>
+  </aside>
+  <b id="show-aside" onclick="showAside()">&gt;</b>
+  <svg id="paint-area">
+    <!-- for test --><circle class="active-point" r="10" id="a point for test"/>
+    很抱歉，您的浏览器不支持此程序所需的绘制功能，所以您暂时无法使用此程序。您可以更换一台电脑或升级浏览器来尝试运行。
+  </svg>
+</body>
+</html>
