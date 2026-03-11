@@ -20,7 +20,7 @@ var topLeftX = - window.innerWidth / 2;
 var topLeftY = - window.innerHeight / 2;
 var width = window.innerWidth, befWidth = width;
 var height = window.innerHeight, befHeight = height;
-//每个多少秒将所有的元素位置重新根据各个自由拖动点的位置更新
+//每个多少秒将所有的元素位置重新根据各个点的位置更新
 const UPD_TIMEOUT = 10;
 //用于对选择过的几何元素进行存储
 var choosed = [];
@@ -109,21 +109,21 @@ function getTheNearest(a, b, ele) {//获取几何元素 ele 距离 (a, b) 最近
     }
 }
 //for test
-paintArea.addEventListener("mousemove", (event) => {
-    let dis = 9999999;
-    let ans = [-1, -1];
-    //console.log("start");
-    for(let i of shapes){
-        let d = distance(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), i);
-        //console.log(d);
-        if(d < dis){
-            dis = d;
-            ans = getTheNearest(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), i);
-        }
-    }
-    document.getElementById("a point for test").setAttribute("cx", ans[0]);
-    document.getElementById("a point for test").setAttribute("cy", ans[1]);
-})
+// paintArea.addEventListener("mousemove", (event) => {
+//     let dis = 9999999;
+//     let ans = [-1, -1];
+//     //console.log("start");
+//     for(let i of shapes){
+//         let d = distance(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), i);
+//         //console.log(d);
+//         if(d < dis){
+//             dis = d;
+//             ans = getTheNearest(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), i);
+//         }
+//     }
+//     document.getElementById("a point for test").setAttribute("cx", ans[0]);
+//     document.getElementById("a point for test").setAttribute("cy", ans[1]);
+// })
 //for test
 //计算两点间距离的函数
 function distance(x1, y1, x2, y2) {
@@ -180,17 +180,55 @@ function createSVG(tagName) {
     return document.createElementNS("http://www.w3.org/2000/svg", tagName);
 }
 
+//*********************************  所有图形的基类  *********************************
+class Shape {
+    static shapes = [];
+    constructor(name, discription) {
+        this.id = Shape.shapes.length;
+        this.name = name;//元素的名称，比如：点A、点C'、线段AB、圆O、弧AB
+        this.discription = discription;//详细介绍（可以为空），比如：线段AB的中点、线段DE上的点、以O为中心的弧
+        Shape.shapes.push(this);
+    }
+}
+
 //*********************************  点  *********************************
-class Point {
+class Point extends Shape{
     static _r = 7;
+    static _pointNameOffset = 10;
+    static _pointNameFontSize = 15;
     static _points = [];
+    static _pointNames = [];//目前所有点的名字
+    static getNewPointName() {//为点获取一个不与其它点重复的名称（按照 A->B->C->...->Z->A'->B'->...->Z'->A''->... 的顺序从左往右搜索，寻找最近的未被占用的名称）
+        for(let i=0; ; i++) {
+            let res = String.fromCodePoint(i % 26 + "A".charCodeAt(0));
+            for(let j=1; j <= i/26; j++) res += "'";
+            let flag = true;//是否能够取这个名
+            for(let name of Point._pointNames)
+                if(name == res) {
+                    flag = false;
+                    break;
+                }
+            if(flag) return res;
+        }
+    }
     static updateAll() {
         for(let point of Point._points) point.update();
     }
-    constructor(startX, startY, draggable, dragThreshold, normalClass) {
+    static wheel(scale) {
+        Point._r *= scale;
+        Point._pointNameOffset *= scale;
+        Point._pointNameFontSize *= scale;
+        Point.updateAll();
+    }
+    constructor(startX, startY, draggable, dragThreshold, normalClass, discription) {
+        let pointName = Point.getNewPointName();
+        super(`点${pointName}`, discription);
+        Point._pointNames.push(pointName);
+
         this.x = startX;
         this.y = startY;
         this.SVGpoint = createSVG("circle");
+        this.SVGpointName = createSVG("text");
         this.normalClass = normalClass;
         this.draginfo = {
             "draggable": draggable,//是否可拖动
@@ -200,8 +238,11 @@ class Point {
             "dragMoved": false//按下鼠标并已经拖动超过阈值
         };
         this.SVGpoint.setAttribute("class", normalClass);
+        this.SVGpointName.setAttribute("fill", "black");
+        this.SVGpointName.innerHTML = this.name.substr(1);
         this.update();
         paintArea.appendChild(this.SVGpoint);
+        paintArea.appendChild(this.SVGpointName);
         Point._points.push(this);
         shapes.push(this);
 
@@ -228,10 +269,6 @@ class Point {
         });
         this.SVGpoint.addEventListener("click", (event) => {event.stopPropagation()})
     }
-    static wheel(scale) {
-        Point._r *= scale;
-        Point.updateAll();
-    }
     choose () {
         let index = choosed.indexOf(this);
         if(index == -1) {
@@ -248,6 +285,9 @@ class Point {
         this.SVGpoint.setAttribute("cy", this.y);
         this.SVGpoint.setAttribute("r", Point._r);
         this.SVGpoint.setAttribute("stroke-width", Point._r / 2);
+        this.SVGpointName.setAttribute("x", this.x + Point._pointNameOffset);
+        this.SVGpointName.setAttribute("y", this.y - Point._pointNameOffset);
+        this.SVGpointName.setAttribute("font-size", Point._pointNameFontSize);
     }
     cancelActive() {
         this.SVGpoint.setAttribute("class", this.normalClass);
@@ -255,12 +295,6 @@ class Point {
     moveTo(toX, toY) {
         [this.x, this.y] = [toX, toY];
         this.update();
-    }
-}
-//可自由拖动的点
-class FreePoint extends Point{
-    constructor(startX, startY) {
-        super(startX, startY, true, MOVE_THRESHOLD, "free-point");
     }
 }
 
@@ -405,12 +439,12 @@ class Arc {//始终从起点到终点顺时针画弧，并以起始点确定半�
 }
 setInterval(Arc.updateAll, UPD_TIMEOUT);
 
-paintArea.addEventListener("click", 
+paintArea.addEventListener("click", //创建点的程序
 (event) => {
     if(!moved) {
         switch(operate) {
             case "create-points": 
-                new FreePoint(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"));
+                new Point(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), true, MOVE_THRESHOLD, "free-point", "");
                 break;
         }
     }
