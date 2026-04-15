@@ -61,21 +61,33 @@ svg {
     margin: 0;
     padding: 0;
 }
-.free-point, .active-point {
+.point, .active-point {
     fill: red;
 }
 .active-point {
     stroke: yellow;
 }
-.unfree-point {
-    fill: gray;
-}
-.free-point, .unfree-point {
+.point {
     stroke: black;
 }
-.line, .arc, .circle{
+.line, .arc, .circle {
     stroke: black;
 }
-.arc, .circle{
+.arc, .circle {
     fill: none;
+}
+.pointNameTag {
+    fill: black;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#change-mode-button{
+    margin-bottom: -10vh;
+    background-color: aquamarine;
+    border-style: solid;
+    border-radius: 0.5vw;
+}
+#change-mode-button:hover{
+    text-decoration: underline;
+    color: blue;
 }

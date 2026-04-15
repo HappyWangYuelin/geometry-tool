@@ -1,49 +1,146 @@
+/*
+开发备忘：
+1、本程序采用以 Shape 为基类，来继承出其它图形类的方式来设计，其中基类已经实现了 wheel 和 updateAll 方法，
+   并会在调整大小时自动调用 wheel，异步自动不断 updateAll。所以在开发子类时，需要实现 updateAll 和 wheel 方法，
+   以便 Shape 类进行调用。而在子类的代码中，由于 Shape 类已经自动 updateAll 了，所以不需要 this.update，除了
+   初始化时需要（详见第二条）。
+2、程序类继承链：
+   Shape 基类 | 图形子类 | 图形构造子类
+   Shape
+   |___________Point
+   |___________Line
+   |           |______LineSeg
+   |           |________Ray
+   |
+   |___________Circle
+   |           |____CenterAndPointCircle
+   |___________Arc
+
+    对于图形子类继承自 Shape 基类的细则见第一条。
+    对于图形子类，其基本格式如下：
+
+class [类名] extends Shape {
+    static [存实例用的数组名] = [];
+    static wheel(scale) {
+        //必须实现
+    }
+    static updateAll() {
+        for(let i of [类名].[存实例用的数组])
+            i.update();
+    }
+    [一些其它的静态属性和方法]
+    constructor([一些参数]) {
+        super([几何元素名称], [元素信息（discription）]);
+        [一些基本的参数设置]
+        this.[用来存对应的 SVG 对象的属性] = createSVG([SVG 标签名]);
+        [类名].[存实例用的数组名].push(this);
+        this.update("init");
+
+        paintArea.appendChild(this.[用来存对应的 SVG 对象的属性]);
+        [类名].[存实例用的数组名].push(this);
+    }
+    update() {
+        //必须实现
+    }
+}
+
+    对于图形构造子类，其基本格式如下：
+
+class [类名] extends [父类] {
+    [一些静态属性和方法]
+    constructor([一些参数]) {
+        super([一些参数]);//上下文初始化
+        this.[属性1] = [值1];//赋值子类特有属性
+        this.[属性2] = [值2]；
+        ...
+    }
+    update(type) {
+        if(type !== "init") {
+            [一些需要用到子类属性的操作]
+            //父类 constructor 中会调用子类的 update，并会传参 "init"，让子类进行判断，
+            //以便防止读取一些子类独有的属性（因为当时还没有设置）
+        }
+        super.update();
+    }
+}
+
+*/
+
 //*********************************  一些全局常量和变量  *********************************
+//常量
+var INF = 1e5;
 //用于缩放
 const SCALE = 1.2;
 //程序常用 DOM 对象
 var paintArea = document.getElementById("paint-area");
 var aside = document.getElementsByTagName("aside")[0];
-//用于记录所有创建的形状
-var shapes = [];
 //用于显示和隐藏侧边栏
 const ASIDE_CONTENT = aside.innerHTML;
 //用于拖动画布
-var dragging = false;
-var mouseStart = [0,0];
-var moved = false;//判断到底是拖动还是点击
-const MOVE_THRESHOLD = 5;//移动超过几像素算作移动而不算作点击
-var lastX = 0;
-var lastY = 0;
+var draginfo = {
+    dragging: false,
+    mouseStart: [0,0],
+    moved: false,//判断到底是拖动还是点击
+    MOVE_THRESHOLD: 5,//移动超过几像素算作移动而不算作点击
+    lastPos: [0, 0]
+};
+//是否只是在调整点的位置（防止误添加点）
+var justMovingPoints = false;
 //用于调整画布尺寸
-var topLeftX = - window.innerWidth / 2;
-var topLeftY = - window.innerHeight / 2;
-var width = window.innerWidth, befWidth = width;
-var height = window.innerHeight, befHeight = height;
-//每个多少秒将所有的元素位置重新根据各个点的位置更新
+var canvasinfo = {
+    topLeftX : - window.innerWidth / 2,
+    topLeftY : - window.innerHeight / 2,
+    width : window.innerWidth,
+    befWidth : window.innerWidth,
+    height : window.innerHeight,
+    befHeight : window.innerHeight
+};
+//每隔多少秒将所有的元素位置重新更新
 const UPD_TIMEOUT = 10;
+//吸附操作的阈值
+var nearThreshold = 5;
 //用于对选择过的几何元素进行存储
 var choosed = [];
 //可以对各种几何图形进行选中的操作模式数组
-const POINT_CAN_CHOOSE = ["create-line-seg", "create-clockwise-arc", "create-circle"];//可以对点进行选中的操作模式
+const POINT_CAN_CHOOSE = ["create-line-seg", "create-clockwise-arc", "create-circle", "create-midpoint", "create-ray"];//可以对点进行选中的操作模式
 const OPERATE_FUNCTIONS = {//对于每个需要选中元素的操作，定义选中的数量和对应的处理函数
     "create-line-seg": [2, () => new LineSeg(...choosed)],//对 create-lines 操作，在选中超过两个点时，创建一条新线段
-    "create-clockwise-arc": [3, () => new Arc(...choosed)],
-    "create-circle" :[2, () => new CenterAndPointCircle(...choosed)]
+    "create-clockwise-arc": [3, () => new Arc(...choosed, `弧${choosed[1].name.substr(1) + choosed[2].name.substr(1)}`,
+        `以${choosed[0].name}为中心，从${choosed[1].name}到${choosed[2].name}的弧`)],
+    "create-circle" : [2, () => new CenterAndPointCircle(...choosed)],
+    "create-midpoint": [2, () => new Point(0, 0/* 这里直接用 0 是因为作为中点，初始化时会自动更新 */,
+        `${choosed[0].name}和${choosed[1].name}的中点`, {
+            restrictType: "midpoint",
+            connectEle: choosed.slice()
+        })],
+    "create-ray": [2, () => new Ray(...choosed)]
 }
 //全局操作类型
 var operate = "create-points";
 /*操作的值包括：
+edit 对元素进行编辑（暂未编好）
 create-circle 圆（圆心+圆上一点）
 create-points 描点
 create-line-seg 连线（线段）
 create-clockwise-arc 绘制顺时针圆弧
+create-midpoint 中点
+create-ray 射线
 */
 //切换操作类型的函数
 function setOperate(newOp) {
+    let oldOp = operate;
     operate = newOp;
     choosed.forEach((value, index, array) => value.cancelActive());
     choosed = [];
+    if(operate == "edit") {
+        document.getElementById("create-mode").style.display = "none";
+        document.getElementById("edit-mode").style.display = "inline";
+        document.getElementById("change-mode-button").innerHTML = "创建";
+    } else if (oldOp == "edit") {
+        document.getElementById("create-mode").style.display = "inline";
+        document.getElementById("edit-mode").style.display = "none";
+        document.getElementById("change-mode-button").innerHTML = "编辑";
+    }
 }
 //当选择几何元素时，对已选择的数量进行判断，从而进行诸如连线等的处理
 function raiseEvent() {//对此时的 choosed 数组进行处理，根据是否选了足够的元素来判断执行对应的操作
@@ -55,8 +152,8 @@ function raiseEvent() {//对此时的 choosed 数组进行处理，根据是否�
 }
 //转换屏幕坐标系到 SVG 坐标系的函数
 function pxToSVG(px, what) {
-    if(what == "x") return topLeftX + px / window.innerWidth * width;
-    else if(what == "y") return topLeftY + px / window.innerHeight * height;
+    if(what == "x") return canvasinfo.topLeftX + px / window.innerWidth * canvasinfo.width;
+    else if(what == "y") return canvasinfo.topLeftY + px / window.innerHeight * canvasinfo.height;
 }
 function getTheNearest(a, b, ele) {//获取几何元素 ele 距离 (a, b) 最近的点
     if(ele instanceof Point) return [ele.x, ele.y];//点到点
@@ -156,24 +253,33 @@ function getAngle(x1, y1, x2, y2, cx, cy) {
 }
 //实时改变 SVG 的 viewBox
 function updSVGSize() {
-    width *= window.innerWidth / befWidth;
-    height *= window.innerHeight / befHeight;
-    [befWidth, befHeight] = [window.innerWidth, window.innerHeight];
+    canvasinfo.width *= window.innerWidth / canvasinfo.befWidth;
+    canvasinfo.height *= window.innerHeight / canvasinfo.befHeight;
+    [canvasinfo.befWidth, canvasinfo.befHeight] = [window.innerWidth, window.innerHeight];
     paintArea.setAttribute("viewBox",
-    `${topLeftX} ${topLeftY} ${width} ${height}`);
+    `${canvasinfo.topLeftX} ${canvasinfo.topLeftY} ${canvasinfo.width} ${canvasinfo.height}`);
 }
 updSVGSize();
-window.addEventListener("resize", updSVGSize);
+addEventListener("resize", updSVGSize);
 //侧边栏收起/展开
 function hideAside() {
-    document.getElementsByTagName("aside")[0].style.width = 0;
-    aside.innerHTML = "";
-    setTimeout(() => document.getElementById("show-aside").style.display = "inline", 1500);
+    document.getElementById("create-mode").style.display = "none";
+    document.getElementById("edit-mode").style.display = "none";
+    document.getElementById("fixed-elements").style.display = "none";
+    aside.style.width = 0;
+    setTimeout(() => {
+        document.getElementById("show-aside").style.display = "inline";
+    }, 1500);
 }
 function showAside() {
-    document.getElementsByTagName("aside")[0].style.width = "max(20vw, 8em)";
+    aside.style.width = "max(20vw, 8em)";
     document.getElementById("show-aside").style.display = "none";
-    setTimeout(() => aside.innerHTML = ASIDE_CONTENT, 1500);
+    // setTimeout(() => aside.innerHTML = ASIDE_CONTENT, 1500);
+    setTimeout(() => {
+        if(operate == "edit") document.getElementById("edit-mode").style.display = "inline";
+        else document.getElementById("create-mode").style.display = "inline";
+        document.getElementById("fixed-elements").style.display = "inline";
+    }, 1500);
 }
 //创建 SVG 元素的函数
 function createSVG(tagName) {
@@ -183,13 +289,25 @@ function createSVG(tagName) {
 //*********************************  所有图形的基类  *********************************
 class Shape {
     static shapes = [];
+    static _subClasses = new Set();//统计所有子类，便于 wheel 和 updateAll 实现
+    static wheel(scale) {
+        for(let i of Shape._subClasses)
+            i.wheel(scale);
+    }
+    static updateAll() {
+        for(let i of Shape._subClasses)
+            i.updateAll();
+    }
     constructor(name, discription) {
+        if(this.constructor !== Shape)//防止子类统计将自己加进去
+            Shape._subClasses.add(this.constructor);
         this.id = Shape.shapes.length;
         this.name = name;//元素的名称，比如：点A、点C'、线段AB、圆O、弧AB
         this.discription = discription;//详细介绍（可以为空），比如：线段AB的中点、线段DE上的点、以O为中心的弧
         Shape.shapes.push(this);
     }
 }
+setInterval(Shape.updateAll, UPD_TIMEOUT);
 
 //*********************************  点  *********************************
 class Point extends Shape{
@@ -220,7 +338,15 @@ class Point extends Shape{
         Point._pointNameFontSize *= scale;
         Point.updateAll();
     }
-    constructor(startX, startY, draggable, dragThreshold, normalClass, discription) {
+    constructor(startX, startY, discription, restrictions) {
+        //startX, startY: 点的初始位置
+        //restrictions: 点的限制，应为一个包含 restrictType 和 connectEle 属性的对象，
+        //    其中 restrictType 代表限制类型，connectEle 代表关联的几何元素数组。
+        //    restrictType 取值可以为
+        //        - free 该点可以随意拖动，此时 connectEle 应为 []。
+        //        - on 在某个几何元素（如线段，圆，弧）上，此时 connectEle 应为 [Shape]，包含一个几何元素，表示点在其上。
+        //             可以对该点进行拖动，但是只能在那个几何元素上。
+        //        - midpoint 某两个点的中点，此时 connectEle 应为 [Point, Point]。点不可拖动。
         let pointName = Point.getNewPointName();
         super(`点${pointName}`, discription);
         Point._pointNames.push(pointName);
@@ -229,22 +355,19 @@ class Point extends Shape{
         this.y = startY;
         this.SVGpoint = createSVG("circle");
         this.SVGpointName = createSVG("text");
-        this.normalClass = normalClass;
         this.draginfo = {
-            "draggable": draggable,//是否可拖动
             "dragStart": [NaN, NaN],
-            "dragThreshold": dragThreshold,//拖动阈值
             "mousedown": false,//已经按下鼠标
             "dragMoved": false//按下鼠标并已经拖动超过阈值
         };
-        this.SVGpoint.setAttribute("class", normalClass);
-        this.SVGpointName.setAttribute("fill", "black");
+        this.restrictions = restrictions;
+        this.SVGpoint.setAttribute("class", "point");
+        this.SVGpointName.setAttribute("class", "pointNameTag");
         this.SVGpointName.innerHTML = this.name.substr(1);
-        this.update();
+        this.update("init");
         paintArea.appendChild(this.SVGpoint);
         paintArea.appendChild(this.SVGpointName);
         Point._points.push(this);
-        shapes.push(this);
 
         this.SVGpoint.addEventListener("mousedown", (event) => {
             this.draginfo.mousedown = true;
@@ -254,22 +377,25 @@ class Point extends Shape{
         paintArea.addEventListener("mousemove", (event) => {
             if(this.draginfo.mousedown) {
                 this.moveTo(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"));
-                if(distance(event.offsetX, event.offsetY, this.draginfo.dragStart[0], this.draginfo.dragStart[1]) >= this.draginfo.dragThreshold)
+                if(distance(event.offsetX, event.offsetY, this.draginfo.dragStart[0], this.draginfo.dragStart[1]) >= draginfo.MOVE_THRESHOLD)
                     this.draginfo.dragMoved = true;
                 event.stopPropagation();
             }
         });
+        paintArea.addEventListener("mouseleave", (event) => {
+            this.draginfo.dragMoved = this.draginfo.mousedown = false;
+            this.draginfo.dragStart = [NaN, NaN];
+        })
         paintArea.addEventListener("mouseup", (event) => {
             if(this.draginfo.mousedown && !this.draginfo.dragMoved &&
               POINT_CAN_CHOOSE.includes(operate)/*只有在一些特定模式下才能选中点*/)
                 this.choose();
+            if(this.draginfo.mousedown) justMovingPoints = true;
             this.draginfo.mousedown = this.draginfo.dragMoved = false;
             this.draginfo.dragStart = [NaN, NaN];
-            event.stopPropagation();
         });
-        this.SVGpoint.addEventListener("click", (event) => {event.stopPropagation()})
     }
-    choose () {
+    choose() {
         let index = choosed.indexOf(this);
         if(index == -1) {
             this.SVGpoint.setAttribute("class", "active-point");
@@ -285,35 +411,46 @@ class Point extends Shape{
         this.SVGpoint.setAttribute("cy", this.y);
         this.SVGpoint.setAttribute("r", Point._r);
         this.SVGpoint.setAttribute("stroke-width", Point._r / 2);
+        this.moveTo(this.x, this.y);
         this.SVGpointName.setAttribute("x", this.x + Point._pointNameOffset);
         this.SVGpointName.setAttribute("y", this.y - Point._pointNameOffset);
         this.SVGpointName.setAttribute("font-size", Point._pointNameFontSize);
     }
     cancelActive() {
-        this.SVGpoint.setAttribute("class", this.normalClass);
+        this.SVGpoint.setAttribute("class", "point");
     };
     moveTo(toX, toY) {
-        [this.x, this.y] = [toX, toY];
-        this.update();
+        let connectEle = this.restrictions.connectEle;
+        switch(this.restrictions.restrictType) {
+            case "free":
+                [this.x, this.y] = [toX, toY];
+                break;
+            case "on":
+                [this.x, this.y] = getTheNearest(this.x, this.y, connectEle[0]);
+                break;
+            case "midpoint":
+                [this.x, this.y] = [(connectEle[0].x + connectEle[1].x) / 2, (connectEle[0].y + connectEle[1].y) / 2];
+                break;
+        }
     }
 }
 
 //*********************************  线  *********************************
-class Line {
+class Line extends Shape{
     static _strokeWidth = 2;
     static _lines = [];
     static updateAll() {
         for(let line of Line._lines)
             line.update();
     }
-    constructor(x1, y1, x2, y2) {
+    constructor(x1, y1, x2, y2, name, discription) {
+        super(name, discription);
         [this.x1, this.y1, this.x2, this.y2] = [x1, y1, x2, y2];
         this.SVGline = createSVG("line");
         this.update("init");
         this.SVGline.setAttribute("class", "line");
         paintArea.appendChild(this.SVGline);
         Line._lines.push(this);
-        shapes.push(this);
     }
     update() {
         this.SVGline.setAttribute("x1", this.x1);
@@ -327,11 +464,11 @@ class Line {
         Line.updateAll();
     }
 }
-setInterval(Line.updateAll, UPD_TIMEOUT);
 //线段
 class LineSeg extends Line {
     constructor(point1, point2) {//用两个点对象作参数
-        super(point1.x, point1.y, point2.x, point2.y);
+        super(point1.x, point1.y, point2.x, point2.y,
+            `线段${point1.name.substr(1)}${point2.name.substr(1)}`, `连接${point1.name}、${point2.name}的线段`);
         this.point1 = point1;
         this.point2 = point2;
     }
@@ -343,8 +480,29 @@ class LineSeg extends Line {
         super.update();
     }
 }
+//射线
+class Ray extends Line {
+    constructor(fromPoint, toPoint) {
+        super(fromPoint.x, fromPoint.y,
+            0, 0,//反正最后会更新
+            `射线${fromPoint.name.substr(1)}${toPoint.name.substr(1)}`, `从${fromPoint.name}到${toPoint.name}的射线`
+        );
+        this.fromPoint = fromPoint;
+        this.toPoint = toPoint;
+    }
+    update(type) {
+        if(type !== "init") {
+            let [fromPoint, toPoint] = [this.fromPoint, this.toPoint];
+            let INF = Math.max(canvasinfo.width, canvasinfo.height) * 5;
+            [this.x1, this.y1] = [fromPoint.x, fromPoint.y];
+            [this.x2, this.y2] = [fromPoint.x + INF, fromPoint.y + (toPoint.y - fromPoint.y) * INF / (toPoint.x - fromPoint.x)];
+            //当 (toPoint.x - fromPoint.x) 是 0 时，也没有关系，因为会将他计算为 Infinity，-Infinity 或 NaN，而计算为 NaN 的情况是两个点重合，本身无意义
+        }
+        super.update();
+    }
+}
 //*********************************  圆  *********************************
-class Circle {
+class Circle extends Shape{
     static _strokeWidth = 2;
     static _circles = [];
     static updateAll() {
@@ -354,14 +512,14 @@ class Circle {
         Circle._strokeWidth *= scale;
         Circle.updateAll(); 
     }
-    constructor(cx, cy, r) {
+    constructor(cx, cy, r, name, discription) {
+        super(name, discription);
         [this.cx, this.cy, this.r] = [cx, cy, r];
         this.svgCircle = createSVG("circle");
         this.svgCircle.setAttribute("class", "circle");
         this.update("init");
         paintArea.appendChild(this.svgCircle);
         Circle._circles.push(this);
-        shapes.push(this);
     }
     update() {
         this.svgCircle.setAttribute("stroke-width", Circle._strokeWidth);
@@ -370,11 +528,13 @@ class Circle {
         this.svgCircle.setAttribute("r", this.r);
     }
 }
-setInterval(Circle.updateAll, UPD_TIMEOUT);
 //圆心和圆上一点构造圆
 class CenterAndPointCircle extends Circle {
     constructor(centerPoint, otherPoint) {
-        super(centerPoint.x, centerPoint.y, distance(centerPoint.x, centerPoint.y, otherPoint.x, otherPoint.y));
+        super(centerPoint.x, centerPoint.y, distance(centerPoint.x, centerPoint.y, otherPoint.x, otherPoint.y),
+            `圆${centerPoint.name.substr(1)}`,
+            `以${centerPoint.name}为圆心，${otherPoint.name}为圆上一点构造的圆`
+        );
         this.centerPoint = centerPoint;
         this.otherPoint = otherPoint;
     }
@@ -389,7 +549,7 @@ class CenterAndPointCircle extends Circle {
 }
 
 //*********************************  弧  *********************************
-class Arc {//始终从起点到终点顺时针画弧，并以起始点确定半径
+class Arc extends Shape{//始终从起点到终点顺时针画弧，并以起始点确定半径
     static _arcs = [];
     static _strokeWidth = 2;
     static getArcAttributes(centerPoint, startPoint, endPoint) {
@@ -414,8 +574,9 @@ class Arc {//始终从起点到终点顺时针画弧，并以起始点确定半�
         Arc._strokeWidth *= scale;
         Arc.updateAll();
     }
-    constructor(centerPoint, startPoint, endPoint) {
+    constructor(centerPoint, startPoint, endPoint, name, discription) {
         //attArray = Arc.getArcAttributes(centerPoint, startPoint, endPoint);
+        super(name, discription);
         this.centerPoint = centerPoint;
         this.startPoint = startPoint;
         this.endPoint = endPoint;
@@ -424,7 +585,6 @@ class Arc {//始终从起点到终点顺时针画弧，并以起始点确定半�
         this.svgArc.setAttribute("class", "arc");
         this.update("init");
         Arc._arcs.push(this);
-        shapes.push(this);
     }
     getArcAttributes() {
         return Arc.getArcAttributes(this.centerPoint, this.startPoint, this.endPoint);
@@ -437,31 +597,47 @@ class Arc {//始终从起点到终点顺时针画弧，并以起始点确定半�
         this.svgArc.setAttribute("stroke-width", Arc._strokeWidth);
     }
 }
-setInterval(Arc.updateAll, UPD_TIMEOUT);
 
 paintArea.addEventListener("click", //创建点的程序
 (event) => {
-    if(!moved) {
+    if(!draginfo.moved && !justMovingPoints) {
         switch(operate) {
-            case "create-points": 
-                new Point(pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y"), true, MOVE_THRESHOLD, "free-point", "");
+            case "create-points":
+                let clickPos = [pxToSVG(event.offsetX, "x"), pxToSVG(event.offsetY, "y")];
+                let adsorbEle = [];
+                for(let ele of Shape.shapes){
+                    if(!(ele instanceof Point) && distance(...clickPos, ele) < nearThreshold)
+                        adsorbEle.push(ele);
+                }
+                if(adsorbEle.length >= 1){
+                    new Point(...clickPos, "",
+                    {
+                        restrictType: "on",
+                        connectEle: [adsorbEle[0]]
+                    });
+                }else new Point(...clickPos, "",
+                    {
+                        restrictType: "free",
+                        connectEle: []
+                    });
                 break;
         }
     }
+    justMovingPoints = false;
 })
 paintArea.addEventListener("mousedown", (event) => {
-    dragging = true; moved = false;
-    mouseStart = [lastX, lastY] = [event.offsetX, event.offsetY];
+    draginfo.dragging = true; draginfo.moved = false;
+    draginfo.mouseStart = draginfo.lastPos = [event.offsetX, event.offsetY];
 });
-paintArea.addEventListener("mouseup", () => {dragging = false; paintArea.style.cursor = "default";});
-paintArea.addEventListener("mouseleave", () => {dragging = false; paintArea.style.cursor = "default"});
+paintArea.addEventListener("mouseup", () => {draginfo.dragging = false; paintArea.style.cursor = "default";});
+paintArea.addEventListener("mouseleave", () => {draginfo.dragging = false; paintArea.style.cursor = "default"});
 paintArea.addEventListener("mousemove", (event) => {
-    if(dragging) {
+    if(draginfo.dragging) {
         paintArea.style.cursor = "grab";
-        topLeftX -= (event.offsetX - lastX) / window.innerWidth * width;
-        topLeftY -= (event.offsetY - lastY) / window.innerHeight * height;
-        lastX = event.offsetX; lastY = event.offsetY;
-        if(distance(lastX, lastY, ...mouseStart) > MOVE_THRESHOLD) moved = true;
+        canvasinfo.topLeftX -= (event.offsetX - draginfo.lastPos[0]) / window.innerWidth * canvasinfo.width;
+        canvasinfo.topLeftY -= (event.offsetY - draginfo.lastPos[1]) / window.innerHeight * canvasinfo.height;
+        draginfo.lastPos = [event.offsetX, event.offsetY];
+        if(distance(...draginfo.lastPos, ...draginfo.mouseStart) > draginfo.MOVE_THRESHOLD) draginfo.moved = true;
         updSVGSize();
     }
 });
@@ -470,13 +646,11 @@ paintArea.addEventListener("wheel", (event) => {
     let scale = bigger ? 1 / SCALE : SCALE;
     let x = pxToSVG(event.offsetX, "x");
     let y = pxToSVG(event.offsetY, "y");
-    topLeftX = x - (x - topLeftX) * scale;
-    topLeftY = y - (y - topLeftY) * scale;
-    width *= scale; height *= scale;
+    canvasinfo.topLeftX = x - (x - canvasinfo.topLeftX) * scale;
+    canvasinfo.topLeftY = y - (y - canvasinfo.topLeftY) * scale;
+    canvasinfo.width *= scale; canvasinfo.height *= scale;
+    nearThreshold *= scale;
     updSVGSize();
-    Point.wheel(scale);
-    Line.wheel(scale);
-    Circle.wheel(scale);
-    Arc.wheel(scale);
+    Shape.wheel(scale);
     event.preventDefault();
 });

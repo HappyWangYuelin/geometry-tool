@@ -9,16 +9,28 @@
 </head>
 <body>
   <aside>
-    <p id="hide-aside" onclick="hideAside()">x</p>
-    <p class="operate-choice">基础操作</p>
-    <button onclick="setOperate('create-points')" class="operate-choice">描点</button>
-    <p class="operate-choice">线</p>
-    <button onclick="setOperate('create-line-seg')" class="operate-choice">线段</button>
-    <p class="operate-choice">圆与弧</p>
-    <button onclick="setOperate('create-circle')" class="operate-choice">圆（圆心+圆上一点）</button>
-    <button onclick="setOperate('create-clockwise-arc')" class="operate-choice">圆弧（顺时针）</button>
+    <div id="fixed-elements">
+      <p id="hide-aside" onclick="hideAside()">x</p>
+      <button onclick="if(operate == 'edit') setOperate('create-points'); else setOperate('edit');" class="operate-choice" id="change-mode-button">编辑</button>
+    </div>
+    <div id="create-mode">
+      <p class="operate-choice">基础操作</p>
+      <button onclick="setOperate('create-points')" class="operate-choice">描点</button>
+      <p class="operate-choice">线</p>
+      <button onclick="setOperate('create-line-seg')" class="operate-choice">线段</button>
+      <button onclick="setOperate('create-ray')" class="operate-choice">射线</button>
+      <p class="operate-choice">圆与弧</p>
+      <button onclick="setOperate('create-circle')" class="operate-choice">圆（圆心+圆上一点）</button>
+      <button onclick="setOperate('create-clockwise-arc')" class="operate-choice">圆弧（顺时针）</button>
+      <p class="operate-choice">点</p>
+      <button onclick="setOperate('create-midpoint')" class="operate-choice">中点</button>
+    </div>
+    <div id="edit-mode" style="display: none;">
+      <p>Sorry~还没有开发哦~</p>
+    </div>
   </aside>
   <b id="show-aside" onclick="showAside()">&gt;</b>
+
   <svg id="paint-area">
     <circle id="create-point-handler" style="display: none;"/>
     很抱歉，您的浏览器不支持此程序所需的绘制功能，所以您暂时无法使用此程序。您可以更换一台电脑或升级浏览器来尝试运行。
