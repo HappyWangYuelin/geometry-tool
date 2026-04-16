@@ -30,8 +30,9 @@ class [类名] extends Shape {
     }
     [一些其它的静态属性和方法]
     constructor([一些参数]) {
-        super([几何元素名称], [元素信息（discription）]);
+        super([几何元素名称(name)], [元素信息(discription)], [类名(shapeType)]);
         [一些基本的参数设置]
+        this.shapeType = [类名];
         this.[用来存对应的 SVG 对象的属性] = createSVG([SVG 标签名]);
         [类名].[存实例用的数组名].push(this);
         this.update("init");
@@ -223,7 +224,6 @@ function getTheNearest(a, b, ele) {//获取几何元素 ele 距离 (a, b) 最近
 //     document.getElementById("a point for test").setAttribute("cx", ans[0]);
 //     document.getElementById("a point for test").setAttribute("cy", ans[1]);
 // })
-//for test
 //计算两点间距离的函数
 function distance(x1, y1, x2, y2) {
     if(! [x1, y1, x2, y2].includes(undefined))
@@ -291,7 +291,7 @@ function createSVG(tagName) {
 //*********************************  所有图形的基类  *********************************
 class Shape {
     static shapes = [];
-    static _subClasses = [Point, Line, Circle, Arc];
+    static _subClasses = new Set();
     static wheel(scale) {
         for(let i of Shape._subClasses)
             i.wheel(scale);
@@ -300,9 +300,9 @@ class Shape {
         for(let i of Shape._subClasses)
             i.updateAll();
     }
-    constructor(name, discription) {
+    constructor(name, discription, shapeType) {
         if(this.constructor !== Shape)//防止子类统计将自己加进去
-            Shape._subClasses.add(this.constructor);
+            Shape._subClasses.add(shapeType);
         this.id = Shape.shapes.length;
         this.name = name;//元素的名称，比如：点A、点C'、线段AB、圆O、弧AB
         this.discription = discription;//详细介绍（可以为空），比如：线段AB的中点、线段DE上的点、以O为中心的弧
@@ -353,13 +353,13 @@ class Point extends Shape{
         let connectEle = restrictions.connectEle;
         switch(restrictions.restrictType) {
             case "free":
-                super(`点${pointName}`, `点`);
+                super(`点${pointName}`, `点`, Point);
                 break;
             case "on":
-                super(`点${pointName}`, `${connectEle[0].name}上的点`);
+                super(`点${pointName}`, `${connectEle[0].name}上的点`, Point);
                 break;
             case "midpoint":
-                super(`点${pointName}`, `${connectEle[0].name}和${connectEle[1]}的中点`);
+                super(`点${pointName}`, `${connectEle[0].name}和${connectEle[1]}的中点`, Point);
                 break;
         }
         Point._pointNames.push(pointName);
@@ -439,7 +439,7 @@ class Point extends Shape{
                 [this.x, this.y] = [toX, toY];
                 break;
             case "on":
-                [this.x, this.y] = getTheNearest(this.x, this.y, connectEle[0]);
+                [this.x, this.y] = getTheNearest(toX, toY, connectEle[0]);
                 break;
             case "midpoint":
                 [this.x, this.y] = [(connectEle[0].x + connectEle[1].x) / 2, (connectEle[0].y + connectEle[1].y) / 2];
@@ -456,7 +456,7 @@ class Line extends Shape{
             line.update();
     }
     constructor(x1, y1, x2, y2, name, discription) {
-        super(name, discription);
+        super(name, discription, Line);
         [this.x1, this.y1, this.x2, this.y2] = [x1, y1, x2, y2];
         this.SVGline = createSVG("line");
         this.update("init");
@@ -553,7 +553,7 @@ class Circle extends Shape{
         Circle.updateAll(); 
     }
     constructor(cx, cy, r, name, discription) {
-        super(name, discription);
+        super(name, discription, Circle);
         [this.cx, this.cy, this.r] = [cx, cy, r];
         this.svgCircle = createSVG("circle");
         this.svgCircle.setAttribute("class", "circle");
@@ -616,7 +616,7 @@ class Arc extends Shape{//始终从起点到终点顺时针画弧，并以起始
     }
     constructor(centerPoint, startPoint, endPoint, name, discription) {
         //attArray = Arc.getArcAttributes(centerPoint, startPoint, endPoint);
-        super(name, discription);
+        super(name, discription, Arc);
         this.centerPoint = centerPoint;
         this.startPoint = startPoint;
         this.endPoint = endPoint;

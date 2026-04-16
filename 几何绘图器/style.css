@@ -86,7 +86,7 @@ svg {
     -webkit-user-select: none;
 }
 #change-mode-button{
-    margin-bottom: -10vh;
+    margin-bottom: 0;
     background-color: aquamarine;
     border-style: solid;
     border-radius: 0.5vw;
