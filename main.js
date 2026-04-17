@@ -7,14 +7,14 @@
 2、程序类继承链：
    Shape 基类 | 图形子类 | 图形构造子类
    Shape
-   |___________Point
-   |___________Line
-   |           |______LineSeg
-   |           |________Ray
-   |
-   |___________Circle
-   |           |____CenterAndPointCircle
-   |___________Arc
+   |___Point
+   |___Line
+   |   |____LineSeg
+   |   |____Ray
+   |   |____StraightLine
+   |___Circle
+   |   |___CenterAndPointCircle
+   |___Arc
 
     对于图形子类继承自 Shape 基类的细则见第一条。
     对于图形子类，其基本格式如下：
@@ -30,13 +30,14 @@ class [类名] extends Shape {
     }
     [一些其它的静态属性和方法]
     constructor([一些参数]) {
-        super([几何元素名称], [元素信息（discription）]);
+        super([几何元素名称(name)], [元素信息(discription)], [类名(shapeType)]);
         [一些基本的参数设置]
+        this.shapeType = [类名];
         this.[用来存对应的 SVG 对象的属性] = createSVG([SVG 标签名]);
         [类名].[存实例用的数组名].push(this);
         this.update("init");
 
-        paintArea.appendChild(this.[用来存对应的 SVG 对象的属性]);
+        paintArea.prepend(this.[用来存对应的 SVG 对象的属性]);
         [类名].[存实例用的数组名].push(this);
     }
     update() {
@@ -102,18 +103,19 @@ var nearThreshold = 5;
 //用于对选择过的几何元素进行存储
 var choosed = [];
 //可以对各种几何图形进行选中的操作模式数组
-const POINT_CAN_CHOOSE = ["create-line-seg", "create-clockwise-arc", "create-circle", "create-midpoint", "create-ray"];//可以对点进行选中的操作模式
+const POINT_CAN_CHOOSE = ["create-line-seg", "create-clockwise-arc", "create-circle", "create-midpoint",
+    "create-ray", "create-straight-line"];//可以对点进行选中的操作模式
 const OPERATE_FUNCTIONS = {//对于每个需要选中元素的操作，定义选中的数量和对应的处理函数
     "create-line-seg": [2, () => new LineSeg(...choosed)],//对 create-lines 操作，在选中超过两个点时，创建一条新线段
     "create-clockwise-arc": [3, () => new Arc(...choosed, `弧${choosed[1].name.substr(1) + choosed[2].name.substr(1)}`,
         `以${choosed[0].name}为中心，从${choosed[1].name}到${choosed[2].name}的弧`)],
     "create-circle" : [2, () => new CenterAndPointCircle(...choosed)],
-    "create-midpoint": [2, () => new Point(0, 0/* 这里直接用 0 是因为作为中点，初始化时会自动更新 */,
-        `${choosed[0].name}和${choosed[1].name}的中点`, {
+    "create-midpoint": [2, () => new Point(0, 0/* 这里直接用 0 是因为作为中点，初始化时会自动更新 */, {
             restrictType: "midpoint",
             connectEle: choosed.slice()
         })],
-    "create-ray": [2, () => new Ray(...choosed)]
+    "create-ray": [2, () => new Ray(...choosed)],
+    "create-straight-line": [2, () => new StraightLine(...choosed)]
 }
 //全局操作类型
 var operate = "create-points";
@@ -125,6 +127,7 @@ create-line-seg 连线（线段）
 create-clockwise-arc 绘制顺时针圆弧
 create-midpoint 中点
 create-ray 射线
+create-straight-line 直线
 */
 //切换操作类型的函数
 function setOperate(newOp) {
@@ -221,7 +224,6 @@ function getTheNearest(a, b, ele) {//获取几何元素 ele 距离 (a, b) 最近
 //     document.getElementById("a point for test").setAttribute("cx", ans[0]);
 //     document.getElementById("a point for test").setAttribute("cy", ans[1]);
 // })
-//for test
 //计算两点间距离的函数
 function distance(x1, y1, x2, y2) {
     if(! [x1, y1, x2, y2].includes(undefined))
@@ -289,7 +291,7 @@ function createSVG(tagName) {
 //*********************************  所有图形的基类  *********************************
 class Shape {
     static shapes = [];
-    static _subClasses = new Set();//统计所有子类，便于 wheel 和 updateAll 实现
+    static _subClasses = new Set();
     static wheel(scale) {
         for(let i of Shape._subClasses)
             i.wheel(scale);
@@ -298,9 +300,9 @@ class Shape {
         for(let i of Shape._subClasses)
             i.updateAll();
     }
-    constructor(name, discription) {
+    constructor(name, discription, shapeType) {
         if(this.constructor !== Shape)//防止子类统计将自己加进去
-            Shape._subClasses.add(this.constructor);
+            Shape._subClasses.add(shapeType);
         this.id = Shape.shapes.length;
         this.name = name;//元素的名称，比如：点A、点C'、线段AB、圆O、弧AB
         this.discription = discription;//详细介绍（可以为空），比如：线段AB的中点、线段DE上的点、以O为中心的弧
@@ -338,7 +340,7 @@ class Point extends Shape{
         Point._pointNameFontSize *= scale;
         Point.updateAll();
     }
-    constructor(startX, startY, discription, restrictions) {
+    constructor(startX, startY, restrictions) {
         //startX, startY: 点的初始位置
         //restrictions: 点的限制，应为一个包含 restrictType 和 connectEle 属性的对象，
         //    其中 restrictType 代表限制类型，connectEle 代表关联的几何元素数组。
@@ -348,7 +350,18 @@ class Point extends Shape{
         //             可以对该点进行拖动，但是只能在那个几何元素上。
         //        - midpoint 某两个点的中点，此时 connectEle 应为 [Point, Point]。点不可拖动。
         let pointName = Point.getNewPointName();
-        super(`点${pointName}`, discription);
+        let connectEle = restrictions.connectEle;
+        switch(restrictions.restrictType) {
+            case "free":
+                super(`点${pointName}`, `点`, Point);
+                break;
+            case "on":
+                super(`点${pointName}`, `${connectEle[0].name}上的点`, Point);
+                break;
+            case "midpoint":
+                super(`点${pointName}`, `${connectEle[0].name}和${connectEle[1]}的中点`, Point);
+                break;
+        }
         Point._pointNames.push(pointName);
 
         this.x = startX;
@@ -426,7 +439,7 @@ class Point extends Shape{
                 [this.x, this.y] = [toX, toY];
                 break;
             case "on":
-                [this.x, this.y] = getTheNearest(this.x, this.y, connectEle[0]);
+                [this.x, this.y] = getTheNearest(toX, toY, connectEle[0]);
                 break;
             case "midpoint":
                 [this.x, this.y] = [(connectEle[0].x + connectEle[1].x) / 2, (connectEle[0].y + connectEle[1].y) / 2];
@@ -434,7 +447,6 @@ class Point extends Shape{
         }
     }
 }
-
 //*********************************  线  *********************************
 class Line extends Shape{
     static _strokeWidth = 2;
@@ -444,12 +456,12 @@ class Line extends Shape{
             line.update();
     }
     constructor(x1, y1, x2, y2, name, discription) {
-        super(name, discription);
+        super(name, discription, Line);
         [this.x1, this.y1, this.x2, this.y2] = [x1, y1, x2, y2];
         this.SVGline = createSVG("line");
         this.update("init");
         this.SVGline.setAttribute("class", "line");
-        paintArea.appendChild(this.SVGline);
+        paintArea.prepend(this.SVGline);//让点在最上层，用户体验更佳
         Line._lines.push(this);
     }
     update() {
@@ -483,8 +495,7 @@ class LineSeg extends Line {
 //射线
 class Ray extends Line {
     constructor(fromPoint, toPoint) {
-        super(fromPoint.x, fromPoint.y,
-            0, 0,//反正最后会更新
+        super(0, 0, 0, 0,//反正最后会更新
             `射线${fromPoint.name.substr(1)}${toPoint.name.substr(1)}`, `从${fromPoint.name}到${toPoint.name}的射线`
         );
         this.fromPoint = fromPoint;
@@ -495,8 +506,37 @@ class Ray extends Line {
             let [fromPoint, toPoint] = [this.fromPoint, this.toPoint];
             let INF = Math.max(canvasinfo.width, canvasinfo.height) * 5;
             [this.x1, this.y1] = [fromPoint.x, fromPoint.y];
-            [this.x2, this.y2] = [fromPoint.x + INF, fromPoint.y + (toPoint.y - fromPoint.y) * INF / (toPoint.x - fromPoint.x)];
-            //当 (toPoint.x - fromPoint.x) 是 0 时，也没有关系，因为会将他计算为 Infinity，-Infinity 或 NaN，而计算为 NaN 的情况是两个点重合，本身无意义
+            if(toPoint.x != fromPoint.x) {//防止除以零导致的奇怪的行为
+                if(fromPoint.x < toPoint.x)
+                    [this.x2, this.y2] = [fromPoint.x + INF, fromPoint.y + (toPoint.y - fromPoint.y) * INF / (toPoint.x - fromPoint.x)];
+                else [this.x2, this.y2] = [fromPoint.x - INF, fromPoint.y - (toPoint.y - fromPoint.y) * INF / (toPoint.x - fromPoint.x)];
+            } else if(toPoint.y >= fromPoint.y) [this.x2, this.y2] = [fromPoint.x, INF];
+            else [this.x2, this.y2] = [fromPoint.x, -INF]
+        }
+        super.update();
+    }
+}
+//直线
+class StraightLine extends Line {
+    constructor(point1, point2) {
+        super(0, 0, 0, 0,//反正最后会更新
+            `直线${point1.name.substr(1)}${point1.name.substr(1)}`, `${point1.name}和${point2.name}之间的直线`
+        );
+        [this.point1, this.point2] = [point1, point2];
+    }
+    update(type) {
+        if(type !== "init") {
+            let [pt1, pt2] = [this.point1, this.point2];
+            let INF = Math.max(canvasinfo.width, canvasinfo.height) * 5;
+            if(pt1.x != pt2.x) {
+                if(pt1.x > pt2.x) {
+                    let tmp = pt1;
+                    pt1 = pt2;
+                    pt2 = tmp;
+                }
+                [this.x1, this.y1] = [pt1.x - INF, pt1.y - (pt2.y - pt1.y) * INF / (pt2.x - pt1.x)];
+                [this.x2, this.y2] = [pt1.x + INF, pt1.y + (pt2.y - pt1.y) * INF / (pt2.x - pt1.x)];
+            } else [this.x1, this.y1, this.x2, this.y2] = [pt1.x, -INF, pt1.x, INF];
         }
         super.update();
     }
@@ -513,12 +553,12 @@ class Circle extends Shape{
         Circle.updateAll(); 
     }
     constructor(cx, cy, r, name, discription) {
-        super(name, discription);
+        super(name, discription, Circle);
         [this.cx, this.cy, this.r] = [cx, cy, r];
         this.svgCircle = createSVG("circle");
         this.svgCircle.setAttribute("class", "circle");
         this.update("init");
-        paintArea.appendChild(this.svgCircle);
+        paintArea.prepend(this.svgCircle);
         Circle._circles.push(this);
     }
     update() {
@@ -576,12 +616,12 @@ class Arc extends Shape{//始终从起点到终点顺时针画弧，并以起始
     }
     constructor(centerPoint, startPoint, endPoint, name, discription) {
         //attArray = Arc.getArcAttributes(centerPoint, startPoint, endPoint);
-        super(name, discription);
+        super(name, discription, Arc);
         this.centerPoint = centerPoint;
         this.startPoint = startPoint;
         this.endPoint = endPoint;
         this.svgArc = createSVG("path");
-        paintArea.appendChild(this.svgArc);
+        paintArea.prepend(this.svgArc);
         this.svgArc.setAttribute("class", "arc");
         this.update("init");
         Arc._arcs.push(this);
@@ -610,12 +650,12 @@ paintArea.addEventListener("click", //创建点的程序
                         adsorbEle.push(ele);
                 }
                 if(adsorbEle.length >= 1){
-                    new Point(...clickPos, "",
+                    new Point(...clickPos,
                     {
                         restrictType: "on",
                         connectEle: [adsorbEle[0]]
                     });
-                }else new Point(...clickPos, "",
+                }else new Point(...clickPos,
                     {
                         restrictType: "free",
                         connectEle: []

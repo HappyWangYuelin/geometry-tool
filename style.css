@@ -14,6 +14,10 @@ aside {
     z-index: 9998;
     padding-left: 1vw;
 }
+.operate-choice {
+    user-select: none;
+    -webkit-user-select: none;
+}
 button.operate-choice {
     height: 5vh;
     font-size: 2.5vh;
@@ -82,7 +86,7 @@ svg {
     -webkit-user-select: none;
 }
 #change-mode-button{
-    margin-bottom: -10vh;
+    margin-bottom: 0;
     background-color: aquamarine;
     border-style: solid;
     border-radius: 0.5vw;
