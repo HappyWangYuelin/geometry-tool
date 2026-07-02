@@ -11,14 +11,14 @@ export function pxToSVG(px, what) {
     else if(what == "y") return cnf.canvasinfo.topLeftY + px / window.innerHeight * cnf.canvasinfo.height;
 }
 // 通过路径来修改对象值的方法，比如：modifyByPath(obj, "a.b.c.d", 1) 等同于 obj.a.b.c.d = 1。而 obj["a.b.c.d"] = 1，无法调用多层，只代表单层属性
-export function modifyByPath(obj, path, changeTo) {
-    let pathArr = path.split(".");
-    for(let i=0; i<pathArr.length; i++) {
-        if(i == pathArr.length - 1)
-            obj[pathArr[i]] = changeTo;// 不能在最后将循环 pathArr.length 次之后的 obj 进行赋值，因为这样就覆盖了原地址，外部不会起到修改效果
-        else obj = obj[pathArr[i]];
-    }
-}
+// export function modifyByPath(obj, path, changeTo) {
+//     let pathArr = path.split(".");
+//     for(let i=0; i<pathArr.length; i++) {
+//         if(i == pathArr.length - 1)
+//             obj[pathArr[i]] = changeTo;// 不能在最后将循环 pathArr.length 次之后的 obj 进行赋值，因为这样就覆盖了原地址，外部不会起到修改效果
+//         else obj = obj[pathArr[i]];
+//     }
+// }
 export function getTheNearest(a, b, ele) {//获取几何元素 ele 距离 (a, b) 最近的点
     if(ele instanceof sh.Point) return [ele.x, ele.y];//点到点
     else if(ele instanceof sh.Line) {//点到线

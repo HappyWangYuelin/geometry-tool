@@ -175,8 +175,7 @@ const STYLE_FORM = {
     <label for="$-line-display" class="control">显示形状</label><br/>
     <label for="$-line-color" class="control">颜色</label>
     <input type="color" class="control" id="$-line-color" name="line-color" value="#000000"/>
-    </div>
-
+    </div><br/>
     
     <input type="submit" value="确认" class="control"/>
     `,
