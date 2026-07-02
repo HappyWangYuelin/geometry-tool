@@ -1,0 +1,18 @@
+        <p class="control">线图形 样式设置模版</p>
+        <form class="control">
+          <label class="control" for="$-preset"><strong>预设样式</strong></label>
+          <input class="control" id="$-preset" type="text" list="$-preset-datalist" name="preset" value="默认"/>
+    <datalist class="control" id="$-preset-datalist"><!-- 预设样式 -->
+      <option value="默认">默认样式</option>
+            
+    </datalist><br/>
+    <label class="control" for="$-div-opener-1"><strong>线的样式</strong></label>
+    <input type="checkbox" class="div-opener" id="$-div-opener-1"/>
+    <div><!-- 正常情况下的样式 -->
+      <input id="$-line-display" class="control" type="checkbox" name="line-display" checked/>
+      <label for="$-line-display" class="control">显示形状</label><br/>
+      <label for="$-line-color" class="control">颜色</label>
+      <input type="color" class="control" id="$-line-color" name="line-color" value="#000000"/>
+    </div>
+        </form>
+        <br/><br/><br/>

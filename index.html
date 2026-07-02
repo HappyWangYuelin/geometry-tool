@@ -12,22 +12,28 @@
   <aside>
     <div id="aside-content">
       <p id="hide-aside">x</p>
-      <button data-op="change-mode" class="operate-choice" id="change-mode-button">编辑</button>
+      <button type="button" data-op="change-mode" class="control" id="change-mode-button">编辑</button>
       <div id="create-mode">
-        <p class="operate-choice">基础操作</p>
-        <button data-op="create-points" class="operate-choice">描点</button>
-        <p class="operate-choice">线</p>
-        <button data-op="create-line-seg" class="operate-choice">线段</button>
-        <button data-op="create-ray" class="operate-choice">射线</button>
-        <button data-op="create-straight-line" class="operate-choice">直线</button>
-        <p class="operate-choice">圆与弧</p>
-        <button data-op="create-circle" class="operate-choice">圆（圆心+圆上一点）</button>
-        <button data-op="create-clockwise-arc" class="operate-choice">圆弧（顺时针）</button>
-        <p class="operate-choice">点</p>
-        <button data-op="create-midpoint" class="operate-choice">中点</button>
+        <p class="control">基础操作</p>
+        <button type="button" data-op="create-points" class="control">描点</button>
+        <p class="control">线</p>
+        <button type="button" data-op="create-line-seg" class="control">线段</button>
+        <button type="button" data-op="create-ray" class="control">射线</button>
+        <button type="button" data-op="create-straight-line" class="control">直线</button>
+        <p class="control">圆与弧</p>
+        <button type="button" data-op="create-circle" class="control">圆（圆心+圆上一点）</button>
+        <button type="button" data-op="create-clockwise-arc" class="control">圆弧（顺时针）</button>
+        <p class="control">点</p>
+        <button type="button" data-op="create-midpoint" class="control">中点</button>
       </div>
       <div id="edit-mode" style="display: none;">
-        <p>Sorry~还没有开发哦~</p>
+
+
+        <!-- <p class="control">线图形 样式设置模版</p>
+        <form class="control">
+          
+        </form>
+        <br/><br/><br/> -->
       </div>
     </div>
   </aside>

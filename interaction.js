@@ -4,7 +4,8 @@
 
 import * as sh from './geometry_shapes.js'
 import * as cnf from './config.js'
-import * as mth from './geometry_math.js'
+import * as tls from './tools.js'
+import * as sts from './style_setting.js'
 
 //当选择几何元素时，对已选择的数量进行判断，从而进行诸如连线等的处理
 export function raiseEvent() {//对此时的 choosed 数组进行处理，根据是否选了足够的元素来判断执行对应的操作
@@ -38,6 +39,7 @@ function showAside() {
         cnf.asideContent.style.display = "block";
     }, 1500);
 }
+sts.StyleSetting.configBaseSettings();
 setInterval(sh.Shape.updateAll, cnf.UPD_TIMEOUT);
 updSVGSize();
 addEventListener("resize", updSVGSize);
@@ -54,10 +56,10 @@ cnf.board.addEventListener("mouseup", //创建点的程序
     if(!cnf.draginfo.moved) {
         switch(cnf.operate) {
             case "create-points":
-                let clickPos = [mth.pxToSVG(event.offsetX, "x"), mth.pxToSVG(event.offsetY, "y")];
+                let clickPos = [tls.pxToSVG(event.offsetX, "x"), tls.pxToSVG(event.offsetY, "y")];
                 let snapEle = [];
                 for(let ele of sh.Shape.shapes){
-                    if(!(ele instanceof sh.Point) && mth.distance(...clickPos, ele) < sh.Point.snapThreshold)
+                    if(!(ele instanceof sh.Point) && tls.distance(...clickPos, ele) < sh.Point.snapThreshold)
                         snapEle.push(ele);
                 }
                 if(snapEle.length >= 1){
@@ -87,15 +89,15 @@ cnf.board.addEventListener("mousemove", (event) => {
         cnf.canvasinfo.topLeftX -= (event.offsetX - cnf.draginfo.lastPos[0]) / window.innerWidth * cnf.canvasinfo.width;
         cnf.canvasinfo.topLeftY -= (event.offsetY - cnf.draginfo.lastPos[1]) / window.innerHeight * cnf.canvasinfo.height;
         cnf.draginfo.lastPos = [event.offsetX, event.offsetY];
-        if(mth.distance(...cnf.draginfo.lastPos, ...cnf.draginfo.mouseStart) > cnf.draginfo.MOVE_THRESHOLD) cnf.draginfo.moved = true;
+        if(tls.distance(...cnf.draginfo.lastPos, ...cnf.draginfo.mouseStart) > cnf.draginfo.MOVE_THRESHOLD) cnf.draginfo.moved = true;
         updSVGSize();
     }
 });
 cnf.board.addEventListener("wheel", (event) => {
     let bigger = event.deltaY < 0;
     let scale = bigger ? 1 / cnf.SCALE : cnf.SCALE;
-    let x = mth.pxToSVG(event.offsetX, "x");
-    let y = mth.pxToSVG(event.offsetY, "y");
+    let x = tls.pxToSVG(event.offsetX, "x");
+    let y = tls.pxToSVG(event.offsetY, "y");
     cnf.canvasinfo.topLeftX = x - (x - cnf.canvasinfo.topLeftX) * scale;
     cnf.canvasinfo.topLeftY = y - (y - cnf.canvasinfo.topLeftY) * scale;
     cnf.canvasinfo.width *= scale; cnf.canvasinfo.height *= scale;

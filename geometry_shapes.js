@@ -75,8 +75,9 @@ class [类名] extends [父类] {
 
 
 import * as cnf from './config.js'
-import * as mth from './geometry_math.js'
+import * as tls from './tools.js'
 import * as itr from './interaction.js'
+import * as sts from './style_setting.js'
 
 //用来创建 SVG 图形的函数
 function createSVG(tagName) {
@@ -96,12 +97,29 @@ export class Shape {
             i.updateAll();
     }
     constructor(name, discription, shapeType) {
-        /*if(this.constructor !== Shape)//防止子类统计将自己加进去  //!==dd
-            */Shape._subClasses.add(shapeType);
+        Shape._subClasses.add(shapeType);
+        this.shapeType = shapeType;
         this.id = Shape.shapes.length;
         this.name = name;//元素的名称，比如：点A、点C'、线段AB、圆O、弧AB
         this.discription = discription;//详细介绍（可以为空），比如：线段AB的中点、线段DE上的点、以O为中心的弧
+        this.styles = {};// 样式配置的对象（不能轻易改名！./style_setting.js 有依赖）
         Shape.shapes.push(this);
+    }
+    getDefaultStyles() {
+        let shapename = cnf.SHAPENAME[this.shapeType.name];
+        let dft_style = sts.DEFAULT_CSS_STYLES[shapename];
+        if(shapename === "点")
+            this.styles = {
+                normalPoint: new sts.StyleConfig(this.SVGpoint, dft_style.normalPoint, true),
+                activePoint: new sts.StyleConfig(this.SVGpoint, dft_style.activePoint, false),
+                pointName: new sts.StyleConfig(this.SVGpointName, dft_style.pointName, true)
+            };
+        else if(shapename === "线图形")
+            this.styles = {
+                normalShape: new sts.StyleConfig(this.SVGShape, dft_style.normalShape, true)
+            };
+        else console.log("ERROR!!!!!!!!! " + shapename);
+        sts.addStyleSettingFor(this);
     }
 }
 
@@ -109,7 +127,7 @@ export class Shape {
 export class Point extends Shape{
     static _r = 7;
     static _pointNameOffset = 10;
-    static _pointNameFontSize = 15;
+    static _pointNameFontSize = 20;
     static _points = [];
     static _pointNames = new Set();//目前所有点的名字
     static snapThreshold = 5;
@@ -166,50 +184,59 @@ export class Point extends Shape{
             "dragMoved": false//是否按下鼠标并已经拖动超过阈值
         };
         this.restrictions = restrictions;
-        this.SVGpoint.setAttribute("class", "point");
-        this.SVGpointName.setAttribute("class", "pointNameTag");
+
+        this.getDefaultStyles();
+
+        //this.SVGpoint.setAttribute("class", "point");
+        //this.SVGpointName.setAttribute("class", "pointNameTag");
+
         this.SVGpointName.innerHTML = pointName;
         this.update("init");
         cnf.paintArea.appendChild(this.SVGpoint);
         cnf.paintArea.appendChild(this.SVGpointName);
         Point._points.push(this);
 
-        this.SVGpoint.addEventListener("mousedown", (event) => {
-            this.draginfo.mousedown = true;
-            this.draginfo.dragStart = [event.offsetX, event.offsetY];
+        this.SVGpoint.addEventListener("mousedown", this.mousedown.bind(this));
+        this.SVGpointName.addEventListener("mousedown", this.mousedown.bind(this));
+        cnf.paintArea.addEventListener("mousemove", this.mousemove.bind(this));
+        cnf.paintArea.addEventListener("mouseup", this.mouseup.bind(this));
+    }
+    mousedown(event) {
+        this.draginfo.mousedown = true;
+        this.draginfo.dragStart = [event.offsetX, event.offsetY];
+        event.stopPropagation();
+    }
+    mousemove(event) {
+        if(this.draginfo.mousedown) {
+            this.moveTo(tls.pxToSVG(event.offsetX, "x"), tls.pxToSVG(event.offsetY, "y"));
+            if(tls.distance(event.offsetX, event.offsetY, this.draginfo.dragStart[0], this.draginfo.dragStart[1]) >= cnf.draginfo.MOVE_THRESHOLD)
+                this.draginfo.dragMoved = true;
             event.stopPropagation();
-        });
-        cnf.paintArea.addEventListener("mousemove", (event) => {
-            if(this.draginfo.mousedown) {
-                this.moveTo(mth.pxToSVG(event.offsetX, "x"), mth.pxToSVG(event.offsetY, "y"));
-                if(mth.distance(event.offsetX, event.offsetY, this.draginfo.dragStart[0], this.draginfo.dragStart[1]) >= cnf.draginfo.MOVE_THRESHOLD)
-                    this.draginfo.dragMoved = true;
-                event.stopPropagation();
-            }
-        });
-        // cnf.paintArea.addEventListener("mouseleave", (event) => {
-        //     this.draginfo.dragMoved = this.draginfo.mousedown = false;
-        //     this.draginfo.dragStart = [NaN, NaN];
-        // })
-        cnf.paintArea.addEventListener("mouseup", (event) => {
-            if(this.draginfo.mousedown && !this.draginfo.dragMoved &&
-               cnf.POINT_CAN_CHOOSE.includes(cnf.operate)/*只有在一些特定模式下才能选中点*/)
-                this.choose();
-            if(this.draginfo.mousedown) event.stopPropagation();
-            this.draginfo.mousedown = this.draginfo.dragMoved = false;
-            this.draginfo.dragStart = [NaN, NaN];
-        });
+        }
+    }
+    mouseup(event) {
+        if(this.draginfo.mousedown && !this.draginfo.dragMoved &&
+           cnf.POINT_CAN_CHOOSE.includes(cnf.operate)/*只有在一些特定模式下才能选中点*/)
+            this.choose();
+        if(this.draginfo.mousedown) event.stopPropagation();
+        this.draginfo.mousedown = this.draginfo.dragMoved = false;
+        this.draginfo.dragStart = [NaN, NaN];
     }
     choose() {
         let index = cnf.choosed.indexOf(this);
+        this.styles.activePoint.configOrDelete();
+        this.styles.normalPoint.configOrDelete();
         if(index == -1) {
-            this.SVGpoint.setAttribute("class", "active-point");
+            // this.SVGpoint.setAttribute("class", "active-point");
             cnf.choosed.push(this);
             itr.raiseEvent();//判断是否需要进行操作并在需要时执行对应操作（比如连线）
         } else {
-            this.cancelActive();
             cnf.choosed.splice(index, 1);
         }
+    }
+    cancelActive() {
+        this.styles.activePoint.configOrDelete();
+        this.styles.normalPoint.configOrDelete();
     }
     update() {
         this.SVGpoint.setAttribute("cx", this.x);
@@ -221,9 +248,6 @@ export class Point extends Shape{
         this.SVGpointName.setAttribute("y", this.y - Point._pointNameOffset);
         this.SVGpointName.setAttribute("font-size", Point._pointNameFontSize);
     }
-    cancelActive() {
-        this.SVGpoint.setAttribute("class", "point");
-    };
     moveTo(toX, toY) {
         let connectEle = this.restrictions.connectEle;
         switch(this.restrictions.restrictType) {
@@ -231,7 +255,7 @@ export class Point extends Shape{
                 [this.x, this.y] = [toX, toY];
                 break;
             case "on":
-                [this.x, this.y] = mth.getTheNearest(toX, toY, connectEle[0]);
+                [this.x, this.y] = tls.getTheNearest(toX, toY, connectEle[0]);
                 break;
             case "midpoint":
                 [this.x, this.y] = [(connectEle[0].x + connectEle[1].x) / 2, (connectEle[0].y + connectEle[1].y) / 2];
@@ -250,18 +274,21 @@ export class Line extends Shape{
     constructor(x1, y1, x2, y2, name, discription) {
         super(name, discription, Line);
         [this.x1, this.y1, this.x2, this.y2] = [x1, y1, x2, y2];
-        this.SVGline = createSVG("line");
+        this.SVGShape = createSVG("line");
         this.update("init");
-        this.SVGline.setAttribute("class", "line");
-        cnf.paintArea.prepend(this.SVGline);//让点在最上层，用户体验更佳
+        // this.SVGShape.setAttribute("class", "line");
+
+        this.getDefaultStyles();
+
+        cnf.paintArea.prepend(this.SVGShape);//让点在最上层，用户体验更佳
         Line._lines.push(this);
     }
     update() {
-        this.SVGline.setAttribute("x1", this.x1);
-        this.SVGline.setAttribute("y1", this.y1);
-        this.SVGline.setAttribute("x2", this.x2);
-        this.SVGline.setAttribute("y2", this.y2);
-        this.SVGline.setAttribute("stroke-width", Line._strokeWidth);
+        this.SVGShape.setAttribute("x1", this.x1);
+        this.SVGShape.setAttribute("y1", this.y1);
+        this.SVGShape.setAttribute("x2", this.x2);
+        this.SVGShape.setAttribute("y2", this.y2);
+        this.SVGShape.setAttribute("stroke-width", Line._strokeWidth);
     }
     static wheel(scale) {
         Line._strokeWidth *= scale;
@@ -312,7 +339,7 @@ export class Ray extends Line {
 export class StraightLine extends Line {
     constructor(point1, point2) {
         super(0, 0, 0, 0,//反正最后会更新
-            `直线${point1.name.substr(1)}${point1.name.substr(1)}`, `${point1.name}和${point2.name}之间的直线`
+            `直线${point1.name.substr(1)}${point2.name.substr(1)}`, `${point1.name}和${point2.name}之间的直线`
         );
         [this.point1, this.point2] = [point1, point2];
     }
@@ -345,23 +372,28 @@ export class Circle extends Shape{
     constructor(cx, cy, r, name, discription) {
         super(name, discription, Circle);
         [this.cx, this.cy, this.r] = [cx, cy, r];
-        this.svgCircle = createSVG("circle");
-        this.svgCircle.setAttribute("class", "circle");
+        this.SVGShape = createSVG("circle");
+        // this.SVGShape.setAttribute("class", "circle");
         this.update("init");
-        cnf.paintArea.prepend(this.svgCircle);
+
+        this.getDefaultStyles();
+
+        cnf.paintArea.prepend(this.SVGShape);
         Circle._circles.push(this);
+
+        this.SVGShape.addEventListener("click", () => console.log("clicking a circle!"));
     }
     update() {
-        this.svgCircle.setAttribute("stroke-width", Circle._strokeWidth);
-        this.svgCircle.setAttribute("cx", this.cx);
-        this.svgCircle.setAttribute("cy", this.cy);
-        this.svgCircle.setAttribute("r", this.r);
+        this.SVGShape.setAttribute("stroke-width", Circle._strokeWidth);
+        this.SVGShape.setAttribute("cx", this.cx);
+        this.SVGShape.setAttribute("cy", this.cy);
+        this.SVGShape.setAttribute("r", this.r);
     }
 }
 //圆心和圆上一点构造圆
 export class CenterAndPointCircle extends Circle {
     constructor(centerPoint, otherPoint) {
-        super(centerPoint.x, centerPoint.y, mth.distance(centerPoint.x, centerPoint.y, otherPoint.x, otherPoint.y),
+        super(centerPoint.x, centerPoint.y, tls.distance(centerPoint.x, centerPoint.y, otherPoint.x, otherPoint.y),
             `圆${centerPoint.name.substr(1)}`,
             `以${centerPoint.name}为圆心，${otherPoint.name}为圆上一点构造的圆`
         );
@@ -372,7 +404,7 @@ export class CenterAndPointCircle extends Circle {
         if(type !== "init") {
             this.cx = this.centerPoint.x;
             this.cy = this.centerPoint.y;
-            this.r = mth.distance(this.centerPoint.x, this.centerPoint.y, this.otherPoint.x, this.otherPoint.y);
+            this.r = tls.distance(this.centerPoint.x, this.centerPoint.y, this.otherPoint.x, this.otherPoint.y);
         }
         super.update();
     }
@@ -386,13 +418,13 @@ export class Arc extends Shape{//始终从起点到终点顺时针画弧，并�
         let ans = [];
         ans.push(startPoint.x);//起点
         ans.push(startPoint.y);
-        ans.push(mth.distance(startPoint.x, startPoint.y, centerPoint.x, centerPoint.y));//半径
+        ans.push(tls.distance(startPoint.x, startPoint.y, centerPoint.x, centerPoint.y));//半径
         ans.push(ans[2]);
         ans.push(0);//旋转角度
-        ans.push(360 - mth.getAngle(startPoint.x, startPoint.y, endPoint.x,
+        ans.push(360 - tls.getAngle(startPoint.x, startPoint.y, endPoint.x,
             endPoint.y, centerPoint.x, centerPoint.y) > 180 ? 1 : 0);//大弧标志
         ans.push(1);//扫掠标志（是否为顺时针）
-        let endAngleRad = mth.getLineAngle(centerPoint.x, centerPoint.y, endPoint.x, endPoint.y) * (Math.PI / 180);
+        let endAngleRad = tls.getLineAngle(centerPoint.x, centerPoint.y, endPoint.x, endPoint.y) * (Math.PI / 180);
         ans.push(centerPoint.x + ans[2] * Math.cos(endAngleRad));//注意：弧的终点由半径、圆心和角度决定，并不是 endPoint 的坐标
         ans.push(centerPoint.y - ans[2] * Math.sin(endAngleRad));//计算结束点
         return ans;
@@ -410,9 +442,12 @@ export class Arc extends Shape{//始终从起点到终点顺时针画弧，并�
         this.centerPoint = centerPoint;
         this.startPoint = startPoint;
         this.endPoint = endPoint;
-        this.svgArc = createSVG("path");
-        cnf.paintArea.prepend(this.svgArc);
-        this.svgArc.setAttribute("class", "arc");
+        this.SVGShape = createSVG("path");
+        cnf.paintArea.prepend(this.SVGShape);
+        // this.SVGShape.setAttribute("class", "arc");
+
+        this.getDefaultStyles();
+
         this.update("init");
         Arc._arcs.push(this);
     }
@@ -421,9 +456,9 @@ export class Arc extends Shape{//始终从起点到终点顺时针画弧，并�
     }
     update() {
         let att = this.getArcAttributes();
-        this.svgArc.setAttribute("d", 
+        this.SVGShape.setAttribute("d", 
             `M ${att[0]} ${att[1]} A ${att.slice(2).join(" ")}`
         );
-        this.svgArc.setAttribute("stroke-width", Arc._strokeWidth);
+        this.SVGShape.setAttribute("stroke-width", Arc._strokeWidth);
     }
 }
